@@ -1,0 +1,7 @@
+buddy_memory.db*
+__pycache__/
+*.pyc
+.env
+input_*.wav
+tmp_*.wav
+archive/

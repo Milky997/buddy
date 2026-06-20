@@ -1,0 +1,11 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-dotenv>=1.0
+sherpa-onnx>=1.10
+soundfile>=0.12
+numpy>=1.24
+transformers>=4.36
+vllm>=0.4
+pydantic>=2.0
+webrtcvad>=2.0.5
+python-multipart>=0.0.5

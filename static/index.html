@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>English Buddy</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#f5f7fa;color:#333;display:flex;justify-content:center;padding:16px}
+.c{max-width:480px;width:100%}
+h1{font-size:24px;text-align:center;color:#2d3748;margin-bottom:4px}
+.sub{text-align:center;font-size:14px;color:#718096;margin-bottom:16px}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:white;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:12px;font-size:14px}
+.dot{width:10px;height:10px;border-radius:50%;background:#ccc;display:inline-block;margin-right:6px}
+.dot.g{background:#48bb78}
+.dot.o{background:#ed8936;animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.btns{display:flex;gap:8px;margin-bottom:12px}
+.btn{flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;background:white;font-size:14px;cursor:pointer;text-align:center}
+.btn.a{border-color:#4299e1;background:#ebf8ff;color:#2b6cb0;font-weight:600}
+.btn.g{background:#48bb78;color:white;border-color:#48bb78;font-size:16px;padding:14px}
+.btn.r{background:#fc8181;color:white;border-color:#fc8181;font-size:16px;padding:14px}
+.btn.s{background:#4299e1;color:white;border-color:#4299e1;padding:8px 20px;margin-left:8px}
+.ctl{display:flex;align-items:center;margin-bottom:12px}
+.ctl .btn.g{flex:1}
+.box{background:white;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:12px;min-height:100px}
+.lb{font-size:12px;color:#a0aec0;margin-bottom:4px}
+.tx{font-size:16px;line-height:1.6}
+.tx.u{color:#2d3748}
+.tx.b{color:#2b6cb0}
+.vb{height:4px;background:#e2e8f0;border-radius:2px;margin-bottom:12px;overflow:hidden}
+.vf{height:100%;width:0%;background:#48bb78;transition:width .1s}
+.st{display:flex;gap:8px;margin-bottom:12px}
+.st>div{flex:1;background:white;border-radius:8px;padding:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+.st .nv{font-size:20px;font-weight:700;color:#2d3748}
+.st .nl{font-size:11px;color:#a0aec0}
+.lg{background:#1a202c;color:#a0aec0;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;height:80px;overflow-y:auto}
+.lg div{margin-bottom:1px}
+</style>
+</head>
+<body>
+<div class="c">
+<h1>English Buddy</h1>
+<p class="sub">AI Voice Conversation Partner</p>
+<div class="bar"><div><span class="dot" id="d"></span><span id="st">Disconnected</span></div><div id="lt" style="color:#718096;font-size:12px"></div></div>
+<div class="btns" id="pb">
+<button class="btn a" data-p="cheerful">Cheerful</button>
+<button class="btn" data-p="calm">Calm</button>
+<button class="btn" data-p="coach">Coach</button>
+</div>
+<div class="ctl">
+<button class="btn g" id="tb" onclick="t()">Start</button>
+<button class="btn s" id="sendBtn" onclick="send()" style="display:none">Send</button>
+</div>
+<div class="vb"><div class="vf" id="vf"></div></div>
+<div class="st">
+<div><div class="nv" id="sL">-</div><div class="nl">Latency</div></div>
+<div><div class="nv" id="sP">0</div><div class="nl">Packets</div></div>
+</div>
+<div class="box">
+<div class="lb">You said</div><div class="tx u" id="ut">-</div>
+<div class="lb" style="margin-top:12px">Buddy</div><div class="tx b" id="bt">Click Start</div>
+</div>
+<div class="lg" id="lg"></div>
+</div>
+<script>
+var ws,cx,stm,pl=false,pers="cheerful",pk=0,SR=16000,nt=0,proc=null;
+function lg(m){var d=document.getElementById("lg");var t=new Date();d.innerHTML+="<div>["+t.getHours().toString().padStart(2,"0")+":"+t.getMinutes().toString().padStart(2,"0")+":"+t.getSeconds().toString().padStart(2,"0")+"] "+m+"</div>";d.scrollTop=d.scrollHeight}
+function rs(d,f,t){var r=f/t;var l=Math.round(d.length/r);var o=new Float32Array(l);for(var i=0;i<l;i++){o[i]=d[Math.min(Math.round(i*r),d.length-1)]}return o}
+function send(){if(ws&&ws.readyState===1){ws.send(JSON.stringify({type:"force_process"}));lg("Sent!")}}
+var pb=document.getElementById("pb");pb.onclick=function(e){var b=e.target.closest(".btn");if(!b)return;this.querySelectorAll(".btn").forEach(function(x){x.classList.remove("a")});b.classList.add("a");pers=b.dataset.p;if(ws&&ws.readyState===1){ws.send(JSON.stringify({type:"set_persona",value:pers}))}lg("Persona: "+pers)}
+async function t(){var b=document.getElementById("tb");if(pl){s();return}try{
+document.getElementById("st").textContent="Starting...";
+stm=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+cx=new(window.AudioContext||window.webkitAudioContext)();SR=cx.sampleRate;lg("Mic: "+SR+"Hz");
+var p=location.protocol==="https:"?"wss:":"ws:";
+ws=new WebSocket(p+"//"+location.host+"/ws");
+ws.binaryType="arraybuffer";
+ws.onopen=function(){pl=true;b.textContent="Stop";b.className="btn r";document.getElementById("sendBtn").style.display="inline-block";document.getElementById("st").textContent="Listening...";document.getElementById("d").className="dot o";ws.send(JSON.stringify({type:"set_persona",value:pers}));rc();lg("Connected");lg("Persona: "+pers)};
+ws.onmessage=function(e){
+if(typeof e.data==="string"){
+try{var j=JSON.parse(e.data);
+if(j.type==="transcript"){document.getElementById("ut").textContent=j.text;lg(">> "+j.text.substring(0,60))}
+if(j.type==="reply"){document.getElementById("bt").textContent=j.text;lg("<< "+j.text.substring(0,60));if(j.latency_ms){document.getElementById("sL").textContent=j.latency_ms}}
+}catch(_){}
+}else if(e.data instanceof ArrayBuffer){
+pk++;document.getElementById("sP").textContent=pk;pa(e.data)
+}};
+ws.onclose=function(){lg("Disconnected");s()};
+ws.onerror=function(){lg("Error");s()};
+}catch(err){lg("Err: "+err.message);s()}}
+function rc(){var src=cx.createMediaStreamSource(stm);proc=cx.createScriptProcessor(4096,1,1);var gn=cx.createGain();gn.gain.value=0;
+proc.onaudioprocess=function(e){if(!ws||ws.readyState!==1)return;var d=e.inputBuffer.getChannelData(0);d=rs(d,SR,16000);var v=0;var b=new ArrayBuffer(d.length*2);var dv=new DataView(b);for(var i=0;i<d.length;i++){var s=Math.max(-1,Math.min(1,d[i]));dv.setInt16(i*2,s<0?s*0x8000:s*0x7FFF,true);v+=Math.abs(d[i])}ws.send(b);v=Math.min(100,v/d.length*500);document.getElementById("vf").style.width=v+"%"};
+src.connect(proc);proc.connect(gn);gn.connect(cx.destination)}
+function pa(b){var i=new Int16Array(b);var f=new Float32Array(i.length);for(var j=0;j<i.length;j++){f[j]=i[j]/32768}var ab=cx.createBuffer(1,f.length,24000);ab.getChannelData(0).set(f);var s=cx.createBufferSource();s.buffer=ab;s.connect(cx.destination);if(nt<cx.currentTime){nt=cx.currentTime+0.05}s.start(nt);nt+=ab.duration}
+function s(){pl=false;document.getElementById("sendBtn").style.display="none";document.getElementById("tb").textContent="Start";document.getElementById("tb").className="btn g";document.getElementById("st").textContent="Disconnected";document.getElementById("d").className="dot";document.getElementById("vf").style.width="0%";nt=0;if(proc)try{proc.disconnect()}catch(_){}if(ws)try{ws.close()}catch(_){}if(stm)stm.getTracks().forEach(function(t){t.stop()});ws=null;stm=null;proc=null}
+lg("Ready");
+</script>
+</body>
+</html>
