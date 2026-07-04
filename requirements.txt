@@ -9,3 +9,4 @@ vllm>=0.4
 pydantic>=2.0
 webrtcvad>=2.0.5
 python-multipart>=0.0.5
+opuslib_next>=0.4.0

@@ -104,3 +104,63 @@ async def root():
  if _os.path.exists(hp):return HTMLResponse(open(hp,"r").read())
  return {"msg":"Buddy running"}
 def create_app():return app
+
+
+from .xiaozhi_codec import *
+from .xiaozhi_codec import SessionManager, new_session_id, build_hello, ota_response, parse_frame, process_audio
+_XZ_SESSIONS = SessionManager()
+LOG2 = logging.getLogger('xiaozhi')
+
+@app.api_route('/xiaozhi/ota/', methods=['GET','POST','HEAD'])
+async def xiaozhi_ota():
+    from fastapi.responses import JSONResponse
+    ws_url = 'ws://' + _cfg.server.host + ':' + str(6006) + '/xiaozhi/v1/'
+    return JSONResponse(content=ota_response(ws_url))
+
+@app.websocket('/xiaozhi/v1/')
+async def xiaozhi_ws(ws: WebSocket):
+    import json as _json
+    await ws.accept()
+    sid = new_session_id()
+    ses = _XZ_SESSIONS.get_or_create(sid)
+    LOG2.info('Connected: %s', sid)
+    try:
+        while True:
+            raw = await ws.receive()
+            if raw.get('type') == 'websocket.disconnect': break
+            msg = raw.get('text') or raw.get('bytes')
+            if isinstance(msg, str):
+                try:
+                    cmd = _json.loads(msg); t = cmd.get('type')
+                    if t == 'hello':
+                        ses.hello_received = True
+                        ap = cmd.get('audio_params',{})
+                        if isinstance(ap,dict) and 'sample_rate' in ap: ses.client_sr = ap['sample_rate']
+                        await ws.send_text(_json.dumps(build_hello(sid, cmd)))
+                        LOG2.info('Hello from device, sr=%s', ses.client_sr)
+                    elif t == 'listen':
+                        st = cmd.get('state')
+                        ses.last_listen_state = st
+                        if st == 'start':
+                            ses.listening = True; ses.clear_opus()
+                            LOG2.info('Listen START %s', sid)
+                        elif st == 'stop':
+                            ses.listening = False
+                            LOG2.info('Listen STOP %s frames=%s', sid, len(ses.opus_frames))
+                            asyncio.ensure_future(process_audio(ws, ses,
+                                asr_fn=lambda p: asr.transcribe_pcm(p),
+                                llm_fn=lambda t: 'Hello! You said: ' + t + '. That is interesting!',
+                                tts_fn=lambda: None, persona_key='cheerful'))
+                    elif t == 'abort':
+                        ses.clear_opus(); LOG2.info('Abort %s', sid)
+                    elif t == 'ping':
+                        await ws.send_text(_json.dumps({'type': 'pong', 'session_id': sid}))
+                except _json.JSONDecodeError: pass
+            elif isinstance(msg, bytes):
+                frame = parse_frame(msg)
+                if frame.payload: ses.add_opus(frame.payload)
+    except Exception as e:
+        LOG2.error('Error %s: %s', sid, e)
+    finally:
+        _XZ_SESSIONS.remove(sid)
+        LOG2.info('Disconnected: %s', sid)
